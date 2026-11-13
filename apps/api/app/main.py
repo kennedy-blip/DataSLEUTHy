@@ -12,6 +12,8 @@ from pydantic import BaseModel, Field
 
 DB_PATH = Path("data/datasets.db")
 
+app = FastAPI(title="DataSleuth API", version="0.1.0")
+
 
 def get_db_connection() -> sqlite3.Connection:
     """Return a SQLite connection, creating the data directory if needed."""
@@ -78,6 +80,7 @@ class DatasetSchema(BaseModel):
 
 def init_db() -> None:
     """Initialize the SQLite database schema."""
+    DB_PATH.parent.mkdir(parents=True, exist_ok=True)
     with get_db_connection() as conn:
         conn.execute(
             """
@@ -103,7 +106,6 @@ def safe_cast(value: Any) -> Any:
 @app.on_event("startup")
 async def startup_event() -> None:
     """Initialize the database on startup."""
-    DB_PATH.parent.mkdir(parents=True, exist_ok=True)
     init_db()
 
 
