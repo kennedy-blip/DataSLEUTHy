@@ -3,19 +3,34 @@
 from __future__ import annotations
 
 import sqlite3
-import tempfile
-from contextlib import contextmanager
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 import pandas as pd
 from fastapi import FastAPI, HTTPException, UploadFile
-from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 
 DB_PATH = Path("data/datasets.db")
 
 app = FastAPI(title="DataSleuth API", version="0.1.0")
+
+
+def get_db_connection() -> sqlite3.Connection:
+    """Return a SQLite connection, creating the data directory and tables if needed."""
+    DB_PATH.parent.mkdir(parents=True, exist_ok=True)
+    conn = sqlite3.connect(str(DB_PATH))
+    conn.row_factory = sqlite3.Row
+    conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS datasets (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT UNIQUE NOT NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    """
+    )
+    conn.commit()
+    return conn
 
 
 class ColumnSchema(BaseModel):
@@ -73,15 +88,15 @@ class DatasetSchema(BaseModel):
     columns: List[ColumnSchema] = Field(..., description="Column schemas")
 
 
-def get_db_connection() -> sqlite3.Connection:
-    """Return a thread-local-ish SQLite connection."""
-    conn = sqlite3.connect(str(DB_PATH))
-    conn.row_factory = sqlite3.Row
-    return conn
+class QueryRequest(BaseModel):
+    """Request body for SQL query."""
+
+    query: str = Field(..., description="SQL query to execute")
 
 
 def init_db() -> None:
     """Initialize the SQLite database schema."""
+    DB_PATH.parent.mkdir(parents=True, exist_ok=True)
     with get_db_connection() as conn:
         conn.execute(
             """
@@ -107,7 +122,6 @@ def safe_cast(value: Any) -> Any:
 @app.on_event("startup")
 async def startup_event() -> None:
     """Initialize the database on startup."""
-    DB_PATH.parent.mkdir(parents=True, exist_ok=True)
     init_db()
 
 
@@ -131,7 +145,7 @@ async def upload_dataset(file: UploadFile) -> DatasetSchema:
 
     try:
         contents = await file.read()
-        df = pd.read_csv(pd.io.common.BytesIO(contents), dtype=str, keep_default_na=True)
+        df = pd.read_csv(pd.io.common.BytesIO(contents), keep_default_na=True)
     except pd.errors.EmptyDataError:
         raise HTTPException(status_code=400, detail="CSV file is empty")
     except Exception as exc:  # noqa: BLE001
@@ -193,7 +207,7 @@ async def get_stats(name: str) -> DatasetStats:
         if not exists:
             raise HTTPException(status_code=404, detail=f"Dataset '{name}' not found")
 
-        df = pd.read_sql_table(name, conn)
+        df = pd.read_sql_query(f"SELECT * FROM {name}", conn)
 
     stats = DatasetStats(
         rows=len(df),
@@ -237,8 +251,9 @@ async def get_stats(name: str) -> DatasetStats:
 
 
 @app.post("/datasets/{name}/query")
-async def run_query(name: str, query: str) -> QueryResult:
+async def run_query(name: str, body: QueryRequest) -> QueryResult:
     """Execute a parameterized SQL query against a dataset."""
+    query = body.query
     if not query.strip():
         raise HTTPException(status_code=400, detail="Query cannot be empty")
 
