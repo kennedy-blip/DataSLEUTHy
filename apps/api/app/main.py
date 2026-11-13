@@ -3,19 +3,22 @@
 from __future__ import annotations
 
 import sqlite3
-import tempfile
-from contextlib import contextmanager
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 import pandas as pd
 from fastapi import FastAPI, HTTPException, UploadFile
-from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 
 DB_PATH = Path("data/datasets.db")
 
-app = FastAPI(title="DataSleuth API", version="0.1.0")
+
+def get_db_connection() -> sqlite3.Connection:
+    """Return a SQLite connection, creating the data directory if needed."""
+    DB_PATH.parent.mkdir(parents=True, exist_ok=True)
+    conn = sqlite3.connect(str(DB_PATH))
+    conn.row_factory = sqlite3.Row
+    return conn
 
 
 class ColumnSchema(BaseModel):
@@ -71,13 +74,6 @@ class DatasetSchema(BaseModel):
 
     name: str = Field(..., description="Dataset name")
     columns: List[ColumnSchema] = Field(..., description="Column schemas")
-
-
-def get_db_connection() -> sqlite3.Connection:
-    """Return a thread-local-ish SQLite connection."""
-    conn = sqlite3.connect(str(DB_PATH))
-    conn.row_factory = sqlite3.Row
-    return conn
 
 
 def init_db() -> None:
