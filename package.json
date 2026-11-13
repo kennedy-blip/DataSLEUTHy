@@ -16,7 +16,6 @@
     "uploads": "^5.0.0"
   },
   "devDependencies": {
-    "@types/python": "^0.7.6",
     "pytest": "^7.4.4",
     "next": "^15.0.0",
     "react": "^18.3.1",

@@ -16,10 +16,20 @@ app = FastAPI(title="DataSleuth API", version="0.1.0")
 
 
 def get_db_connection() -> sqlite3.Connection:
-    """Return a SQLite connection, creating the data directory if needed."""
+    """Return a SQLite connection, creating the data directory and tables if needed."""
     DB_PATH.parent.mkdir(parents=True, exist_ok=True)
     conn = sqlite3.connect(str(DB_PATH))
     conn.row_factory = sqlite3.Row
+    conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS datasets (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT UNIQUE NOT NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    """
+    )
+    conn.commit()
     return conn
 
 
