@@ -78,6 +78,12 @@ class DatasetSchema(BaseModel):
     columns: List[ColumnSchema] = Field(..., description="Column schemas")
 
 
+class QueryRequest(BaseModel):
+    """Request body for SQL query."""
+
+    query: str = Field(..., description="SQL query to execute")
+
+
 def init_db() -> None:
     """Initialize the SQLite database schema."""
     DB_PATH.parent.mkdir(parents=True, exist_ok=True)
@@ -129,7 +135,7 @@ async def upload_dataset(file: UploadFile) -> DatasetSchema:
 
     try:
         contents = await file.read()
-        df = pd.read_csv(pd.io.common.BytesIO(contents), dtype=str, keep_default_na=True)
+        df = pd.read_csv(pd.io.common.BytesIO(contents), keep_default_na=True)
     except pd.errors.EmptyDataError:
         raise HTTPException(status_code=400, detail="CSV file is empty")
     except Exception as exc:  # noqa: BLE001
@@ -191,7 +197,7 @@ async def get_stats(name: str) -> DatasetStats:
         if not exists:
             raise HTTPException(status_code=404, detail=f"Dataset '{name}' not found")
 
-        df = pd.read_sql_table(name, conn)
+        df = pd.read_sql_query(f"SELECT * FROM {name}", conn)
 
     stats = DatasetStats(
         rows=len(df),
@@ -235,8 +241,9 @@ async def get_stats(name: str) -> DatasetStats:
 
 
 @app.post("/datasets/{name}/query")
-async def run_query(name: str, query: str) -> QueryResult:
+async def run_query(name: str, body: QueryRequest) -> QueryResult:
     """Execute a parameterized SQL query against a dataset."""
+    query = body.query
     if not query.strip():
         raise HTTPException(status_code=400, detail="Query cannot be empty")
 
