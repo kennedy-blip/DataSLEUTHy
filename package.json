@@ -1,0 +1,26 @@
+{
+  "name": "kennedy-blip/data-sleuth",
+  "version": "0.1.0",
+  "type": "monorepo",
+  "scripts": {
+    "build": "next build && fastapi build --from-dir=apps/api",
+    "dev": "next dev && uvicorn apps/api/app:app --reload",
+    "install": "cd apps/api && pip install -r requirements.txt && cd ../web && npm install",
+    "test": "pytest apps/api/tests/ -q"
+  },
+  "dependencies": {
+    "fastapi": "^0.104.0",
+    "sqlalchemy": "^2.0.36",
+    "pandas": "^2.1.4",
+    "numpy": "^2.0.3",
+    "uploads": "^5.0.0"
+  },
+  "devDependencies": {
+    "@types/python": "^0.7.6",
+    "pytest": "^7.4.4",
+    "next": "^15.0.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "typescript": "^5.5.0"
+  }
+}
